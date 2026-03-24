@@ -1103,14 +1103,17 @@ function M.write_comment(bufnr, comment, kind, line)
     end
   elseif kind == "PullRequestReviewComment" then
     -- Review thread comments
+    local is_reply = not utils.is_blank(comment.replyTo)
+    local indent_mult = is_reply and 3 or 2
+    local label = is_reply and "REPLY: " or "THREAD COMMENT: "
     local state_bubble =
       bubbles.make_bubble(comment.state:lower(), utils.state_hl_map[comment.state] .. "Bubble", { margin_width = 1 })
     table.insert(
       header_vt,
-      { string.rep(" ", 2 * conf.timeline_indent) .. conf.timeline_marker .. " ", "OctoTimelineMarker" }
+      { string.rep(" ", indent_mult * conf.timeline_indent) .. conf.timeline_marker .. " ", "OctoTimelineMarker" }
     )
     comment.author = logins.format_author(comment.author)
-    table.insert(header_vt, { "THREAD COMMENT: ", "OctoTimelineItemHeading" })
+    table.insert(header_vt, { label, "OctoTimelineItemHeading" })
     table.insert(header_vt, { comment.author.login, comment.viewerDidAuthor and "OctoUserViewer" or "OctoUser" })
     if comment.state ~= "SUBMITTED" then
       vim.list_extend(header_vt, state_bubble)
