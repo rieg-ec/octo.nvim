@@ -8,6 +8,7 @@ local utils = require "octo.utils"
 local logins = require "octo.logins"
 local folds = require "octo.folds"
 local bubbles = require "octo.ui.bubbles"
+local colors = require "octo.ui.colors"
 local notify = require "octo.notify"
 local TextChunkBuilder = require "octo.ui.text-chunk-builder"
 local vim = vim
@@ -1051,12 +1052,27 @@ function M.write_details(bufnr, issue, update, include_status)
   end
 end
 
-local function make_review_label_chunks(review_label)
-  if not review_label then
-    return nil
+local function get_reviewer_highlight(login)
+  if not login or login == "" then
+    return "OctoUser"
   end
 
-  return { { "[" .. review_label .. "] ", "OctoDetailsValue" } }
+  local palette = {
+    config.values.colors.dark_blue,
+    config.values.colors.dark_green,
+    config.values.colors.purple,
+    config.values.colors.dark_red,
+    config.values.colors.dark_yellow,
+    config.values.colors.grey,
+  }
+
+  local hash = 0
+  for i = 1, #login do
+    hash = (hash * 31 + login:byte(i)) % 2147483647
+  end
+
+  local color = palette[(hash % #palette) + 1]
+  return colors.create_highlight(color)
 end
 
 ---@param bufnr integer
@@ -1085,7 +1101,6 @@ function M.write_comment(bufnr, comment, kind, line)
   M.write_block(bufnr, { "", "" }, line)
 
   local header_vt = {}
-  local review_label_chunks = make_review_label_chunks(comment.reviewLabel)
   -- local author_bubble = bubbles.make_user_bubble(
   --   comment.author.login,
   --   comment.viewerDidAuthor,
@@ -1098,14 +1113,11 @@ function M.write_comment(bufnr, comment, kind, line)
       bubbles.make_bubble(utils.state_msg_map[comment.state], utils.state_hl_map[comment.state] .. "Bubble")
     table.insert(header_vt, { conf.timeline_marker .. " ", "OctoTimelineMarker" })
     table.insert(header_vt, { "REVIEW: ", "OctoTimelineItemHeading" })
-    if review_label_chunks then
-      vim.list_extend(header_vt, review_label_chunks)
-    end
     --vim.list_extend(header_vt, author_bubble)
     comment.author = logins.format_author(comment.author)
     table.insert(header_vt, {
       comment.author.login,
-      comment.viewerDidAuthor and "OctoUserViewer" or "OctoUser",
+      get_reviewer_highlight(comment.author.login),
     })
     table.insert(header_vt, { " ", "OctoTimelineItemHeading" })
     vim.list_extend(header_vt, state_bubble)
@@ -1126,10 +1138,7 @@ function M.write_comment(bufnr, comment, kind, line)
     )
     comment.author = logins.format_author(comment.author)
     table.insert(header_vt, { label, "OctoTimelineItemHeading" })
-    if review_label_chunks then
-      vim.list_extend(header_vt, review_label_chunks)
-    end
-    table.insert(header_vt, { comment.author.login, comment.viewerDidAuthor and "OctoUserViewer" or "OctoUser" })
+    table.insert(header_vt, { comment.author.login, get_reviewer_highlight(comment.author.login) })
     if comment.state ~= "SUBMITTED" then
       vim.list_extend(header_vt, state_bubble)
     end
@@ -1145,7 +1154,7 @@ function M.write_comment(bufnr, comment, kind, line)
     )
     comment.author = logins.format_author(comment.author)
     table.insert(header_vt, { "COMMENT: ", "OctoTimelineItemHeading" })
-    table.insert(header_vt, { comment.author.login, comment.viewerDidAuthor and "OctoUserViewer" or "OctoUser" })
+    table.insert(header_vt, { comment.author.login, get_reviewer_highlight(comment.author.login) })
     table.insert(header_vt, { " " .. utils.format_date(comment.createdAt), "OctoDate" })
     if not comment.viewerCanUpdate then
       table.insert(header_vt, { " ", "OctoRed" })
@@ -1160,7 +1169,7 @@ function M.write_comment(bufnr, comment, kind, line)
     end
     --vim.list_extend(header_vt, author_bubble)
     comment.author = logins.format_author(comment.author)
-    table.insert(header_vt, { comment.author.login, comment.viewerDidAuthor and "OctoUserViewer" or "OctoUser" })
+    table.insert(header_vt, { comment.author.login, get_reviewer_highlight(comment.author.login) })
     table.insert(header_vt, { " " .. utils.format_date(comment.createdAt), "OctoDate" })
     if not comment.viewerCanUpdate then
       table.insert(header_vt, { " ", "OctoRed" })
@@ -1748,7 +1757,6 @@ function M.write_review_thread_header(bufnr, opts, line)
   local header_vt = {
     { string.rep(" ", conf.timeline_indent) .. conf.timeline_marker .. " ", "OctoTimelineMarker" },
     { "THREAD: ", "OctoTimelineItemHeading" },
-    { opts.reviewLabel and ("[" .. opts.reviewLabel .. "] ") or "", "OctoDetailsValue" },
     { "[", "OctoSymbol" },
     { opts.path .. " ", "OctoDetailsLabel" },
     { tostring(opts.start_line) .. ":" .. tostring(opts.end_line), "OctoDetailsValue" },
@@ -3131,16 +3139,12 @@ end
 
 ---@param bufnr integer
 ---@param threads octo.ReviewThread[]
----@param review_labels? table<string, string>
-function M.write_threads(bufnr, threads, review_labels)
+function M.write_threads(bufnr, threads)
   local comment_start, comment_end ---@type integer, integer
 
   -- print each of the threads
   for _, thread in ipairs(threads) do
     local thread_start, thread_end ---@type integer, integer
-    local root_comment = thread.comments.nodes[1]
-    local thread_review_label = review_labels and root_comment and root_comment.pullRequestReview
-      and review_labels[root_comment.pullRequestReview.id]
     for _, comment in ipairs(thread.comments.nodes) do
       ---@class octo.AugmentedReviewThreadComment : octo.ReviewThreadCommentFragment
       ---@field diffSide string
@@ -3150,7 +3154,6 @@ function M.write_threads(bufnr, threads, review_labels)
       -- augment comment details
       comment.path = thread.path
       comment.diffSide = thread.diffSide
-      comment.reviewLabel = thread_review_label
 
       -- review thread header
       if utils.is_blank(comment.replyTo) then
@@ -3169,7 +3172,6 @@ function M.write_threads(bufnr, threads, review_labels)
           isResolved = thread.isResolved,
           resolvedBy = thread.resolvedBy,
           commit = comment.originalCommit.abbreviatedOid,
-          reviewLabel = thread_review_label,
         })
 
         -- write empty line
@@ -3321,31 +3323,6 @@ function M.write_timeline_items(bufnr, obj)
     end
   end
 
-  local review_labels = {} ---@type table<string, string>
-  do
-    local next_review = 1
-    local function assign_review_label(review_id)
-      if review_id == nil or review_id == vim.NIL or review_labels[review_id] then
-        return
-      end
-      review_labels[review_id] = "R" .. tostring(next_review)
-      next_review = next_review + 1
-    end
-
-    for _, item in ipairs(timeline_nodes) do
-      if item.__typename == "PullRequestReview" then
-        assign_review_label(item.id)
-      end
-    end
-
-    for _, thread in ipairs(obj.reviewThreads.nodes) do
-      local root_comment = thread.comments and thread.comments.nodes and thread.comments.nodes[1]
-      if root_comment and root_comment.pullRequestReview then
-        assign_review_label(root_comment.pullRequestReview.id)
-      end
-    end
-  end
-
   --- Empty timeline node to ensure the last
   --- labeled/unlabeled events or subissues events are rendered
   table.insert(timeline_nodes, {})
@@ -3450,13 +3427,12 @@ function M.write_timeline_items(bufnr, obj)
 
       -- skip reviews with no threads and empty body
       if #threads > 0 or not utils.is_blank(item.body) then
-        item.reviewLabel = review_labels[item.id]
         -- print review header and top level comment
         local review_start, review_end = M.write_comment(bufnr, item, "PullRequestReview")
 
         -- print threads
         if #threads > 0 then
-          review_end = M.write_threads(bufnr, threads, review_labels)
+          review_end = M.write_threads(bufnr, threads)
           folds.create(bufnr, review_start + 1, review_end, true)
         end
         M.write_block(bufnr, { "" })
