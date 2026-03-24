@@ -1170,6 +1170,17 @@ function M.write_comment(bufnr, comment, kind, line)
   vim.list_extend(content, { "" })
   local comment_mark = M.write_block(bufnr, content, line, true)
 
+  if kind == "PullRequestReviewComment" then
+    local body_indent = string.rep(" ", 2 * conf.timeline_indent)
+    local indent_ns = vim.api.nvim_create_namespace ""
+    for i = 0, #content - 1 do
+      vim.api.nvim_buf_set_extmark(bufnr, indent_ns, line - 1 + i, 0, {
+        virt_text = { { body_indent, "Normal" } },
+        virt_text_pos = "inline",
+      })
+    end
+  end
+
   line = line + #content
 
   -- reactions
