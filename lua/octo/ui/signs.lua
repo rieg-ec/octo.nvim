@@ -62,10 +62,8 @@ function M.place_signs(bufnr, start_line, end_line, is_dirty, is_reply)
   if not start_line or not end_line then
     return
   end
-  local use_statuscolumn = config.values.ui.use_statuscolumn
-  local use_signcolumn = config.values.ui.use_signcolumn and not use_statuscolumn
   -- sign column
-  if use_signcolumn then
+  if config.values.ui.use_signcolumn then
     local dirty_mod = is_dirty and "dirty" or "clean"
 
     if start_line == end_line or end_line < start_line then
@@ -81,7 +79,7 @@ function M.place_signs(bufnr, start_line, end_line, is_dirty, is_reply)
     end
   end
   -- status column
-  if use_statuscolumn then
+  if config.values.ui.use_statuscolumn then
     return require("octo.ui.statuscolumn").add(bufnr, start_line, end_line, is_dirty, is_reply)
   end
 end
