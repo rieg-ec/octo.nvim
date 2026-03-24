@@ -1,3 +1,4 @@
+local config = require "octo.config"
 local vim = vim
 
 local M = {}
@@ -11,9 +12,24 @@ local corners = {
 }
 
 ---@alias OctoSign {text: string, hl?: string}
----@alias OctoComment { from: number, to: number, dirty: boolean }
+---@alias OctoComment { from: number, to: number, dirty: boolean, is_reply: boolean }
 ---@type table<integer, OctoComment[]>
 local comments = {}
+
+local function gutter_width()
+  return config.values.timeline_indent + 2
+end
+
+---@param corner string
+---@param is_reply boolean
+---@return string
+local function render_corner(corner, is_reply)
+  local indent = string.rep(" ", config.values.timeline_indent)
+  if is_reply then
+    return indent .. corner
+  end
+  return corner .. indent
+end
 
 ---@param buf integer
 function M.reset(buf)
@@ -24,9 +40,10 @@ end
 ---@param start_line integer
 ---@param end_line integer
 ---@param is_dirty boolean
-function M.add(bufnr, start_line, end_line, is_dirty)
+---@param is_reply? boolean
+function M.add(bufnr, start_line, end_line, is_dirty, is_reply)
   comments[bufnr] = comments[bufnr] or {}
-  table.insert(comments[bufnr], { from = start_line, to = end_line, dirty = is_dirty })
+  table.insert(comments[bufnr], { from = start_line, to = end_line, dirty = is_dirty, is_reply = is_reply or false })
 end
 
 --- Fixes octo's comment rendering to take wrapping into account
@@ -49,7 +66,7 @@ function M.get_sign(buf, lnum, vnum, win)
       elseif lnum == s.to and vnum == height_end - 1 then
         corner = corners.last
       end
-      return { text = corner, hl = s.dirty and "OctoDirty" or "OctoStatusColumn" }
+      return { text = render_corner(corner, s.is_reply), hl = s.dirty and "OctoDirty" or "OctoStatusColumn" }
     end
   end
 end
@@ -58,7 +75,7 @@ end
 ---@param len? number
 function M.highlight(sign, len)
   sign = sign or { text = "" }
-  len = len or 2
+  len = len or gutter_width()
   local text = vim.fn.strcharpart(sign.text, 0, len) ---@type string
   text = text .. string.rep(" ", len - vim.fn.strchars(text))
   return sign.hl and ("%#" .. sign.hl .. "#" .. text .. "%*") or text

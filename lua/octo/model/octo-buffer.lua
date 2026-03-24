@@ -226,11 +226,15 @@ function OctoBuffer:configure()
     vim.cmd [[setlocal conceallevel=2]]
     vim.cmd [[setlocal nonumber norelativenumber nocursorline wrap]]
 
-    if config.values.ui.use_signcolumn then
+    local use_statuscolumn = config.values.ui.use_statuscolumn
+    local use_signcolumn = config.values.ui.use_signcolumn and not use_statuscolumn
+
+    if use_signcolumn then
       vim.cmd [[setlocal signcolumn=yes]]
       autocmds.update_signs(self.bufnr)
     end
-    if config.values.ui.use_statuscolumn then
+    if use_statuscolumn then
+      vim.cmd [[setlocal signcolumn=no]]
       vim.opt_local.statuscolumn = [[%!v:lua.require'octo.ui.statuscolumn'.statuscolumn()]]
       autocmds.update_signs(self.bufnr)
     end
@@ -921,7 +925,8 @@ function OctoBuffer:render_signs()
       if metadata.dirty then
         issue_dirty = true
       end
-      signs.place_signs(self.bufnr, metadata.startLine, metadata.endLine, metadata.dirty)
+      local is_reply = not utils.is_blank(metadata.replyTo)
+      signs.place_signs(self.bufnr, metadata.startLine, metadata.endLine, metadata.dirty, is_reply)
     end
 
     -- description
