@@ -1103,14 +1103,17 @@ function M.write_comment(bufnr, comment, kind, line)
     end
   elseif kind == "PullRequestReviewComment" then
     -- Review thread comments
+    local is_reply = not utils.is_blank(comment.replyTo)
+    local indent_mult = 2
+    local label = is_reply and "REPLY: " or "THREAD COMMENT: "
     local state_bubble =
       bubbles.make_bubble(comment.state:lower(), utils.state_hl_map[comment.state] .. "Bubble", { margin_width = 1 })
     table.insert(
       header_vt,
-      { string.rep(" ", 2 * conf.timeline_indent) .. conf.timeline_marker .. " ", "OctoTimelineMarker" }
+      { string.rep(" ", indent_mult * conf.timeline_indent) .. conf.timeline_marker .. " ", "OctoTimelineMarker" }
     )
     comment.author = logins.format_author(comment.author)
-    table.insert(header_vt, { "THREAD COMMENT: ", "OctoTimelineItemHeading" })
+    table.insert(header_vt, { label, "OctoTimelineItemHeading" })
     table.insert(header_vt, { comment.author.login, comment.viewerDidAuthor and "OctoUserViewer" or "OctoUser" })
     if comment.state ~= "SUBMITTED" then
       vim.list_extend(header_vt, state_bubble)
@@ -1166,6 +1169,17 @@ function M.write_comment(bufnr, comment, kind, line)
   local content = vim.split(comment_body, "\n", { plain = true })
   vim.list_extend(content, { "" })
   local comment_mark = M.write_block(bufnr, content, line, true)
+
+  if kind == "PullRequestReviewComment" then
+    local body_indent = string.rep(" ", 2 * conf.timeline_indent)
+    local indent_ns = vim.api.nvim_create_namespace ""
+    for i = 0, #content - 1 do
+      vim.api.nvim_buf_set_extmark(bufnr, indent_ns, line - 1 + i, 0, {
+        virt_text = { { body_indent, "Normal" } },
+        virt_text_pos = "inline",
+      })
+    end
+  end
 
   line = line + #content
 

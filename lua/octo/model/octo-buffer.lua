@@ -921,7 +921,8 @@ function OctoBuffer:render_signs()
       if metadata.dirty then
         issue_dirty = true
       end
-      signs.place_signs(self.bufnr, metadata.startLine, metadata.endLine, metadata.dirty)
+      local is_reply = not utils.is_blank(metadata.replyTo)
+      signs.place_signs(self.bufnr, metadata.startLine, metadata.endLine, metadata.dirty, is_reply)
     end
 
     -- description

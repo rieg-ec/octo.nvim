@@ -57,7 +57,8 @@ end
 ---@param start_line integer
 ---@param end_line integer
 ---@param is_dirty boolean
-function M.place_signs(bufnr, start_line, end_line, is_dirty)
+---@param is_reply? boolean
+function M.place_signs(bufnr, start_line, end_line, is_dirty, is_reply)
   if not start_line or not end_line then
     return
   end
@@ -79,7 +80,7 @@ function M.place_signs(bufnr, start_line, end_line, is_dirty)
   end
   -- status column
   if config.values.ui.use_statuscolumn then
-    return require("octo.ui.statuscolumn").add(bufnr, start_line, end_line, is_dirty)
+    return require("octo.ui.statuscolumn").add(bufnr, start_line, end_line, is_dirty, is_reply)
   end
 end
 
