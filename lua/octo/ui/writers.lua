@@ -1104,7 +1104,7 @@ function M.write_comment(bufnr, comment, kind, line)
   elseif kind == "PullRequestReviewComment" then
     -- Review thread comments
     local is_reply = not utils.is_blank(comment.replyTo)
-    local indent_mult = is_reply and 3 or 2
+    local indent_mult = 2
     local label = is_reply and "REPLY: " or "THREAD COMMENT: "
     local state_bubble =
       bubbles.make_bubble(comment.state:lower(), utils.state_hl_map[comment.state] .. "Bubble", { margin_width = 1 })
