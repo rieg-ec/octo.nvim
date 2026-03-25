@@ -771,9 +771,15 @@ end
 
 ---Replies a review thread w/o creating a new review
 function OctoBuffer:do_add_pull_request_comment(comment_metadata)
-  local current_review = require("octo.reviews").get_current_review()
-  if not utils.is_blank(current_review) then
-    utils.error "Please submit or discard the current review before adding a comment"
+  -- If there's a pending review for this PR (on any tab), use the GraphQL mutation
+  -- to add the reply to that review. The REST endpoint would fail with 422 because
+  -- GitHub only allows one pending review per user per PR.
+  local reviews = require("octo.reviews")
+  local pending_review = reviews.get_current_review()
+    or reviews.find_pending_review_for_pr(self.repo, self.number)
+  if not utils.is_blank(pending_review) and pending_review.id ~= -1 then
+    comment_metadata.reviewId = pending_review.id
+    self:do_add_thread_comment(comment_metadata)
     return
   end
   gh.run {

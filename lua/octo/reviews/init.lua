@@ -597,6 +597,23 @@ function M.get_current_review()
   return M.reviews[tostring(current_tabpage)]
 end
 
+--- Find a pending review for a given PR across all tab pages
+--- @param repo string e.g. "owner/name"
+--- @param number integer PR number
+--- @return Review | nil
+function M.find_pending_review_for_pr(repo, number)
+  for _, review in pairs(M.reviews) do
+    if review.id ~= -1
+      and review.pull_request
+      and review.pull_request.owner .. "/" .. review.pull_request.name == repo
+      and review.pull_request.number == number
+    then
+      return review
+    end
+  end
+  return nil
+end
+
 --- Get the diff Layout of the review if any
 --- @return Layout | nil
 function M.get_current_layout()
