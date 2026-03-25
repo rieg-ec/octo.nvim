@@ -26,6 +26,7 @@ local M = {}
 ---@field bodyMetadata BodyMetadata
 ---@field commentsMetadata CommentMetadata[]
 ---@field threadsMetadata ThreadMetadata[]
+---@field commitMetadata table<string, { oid: string, abbreviatedOid: string }>
 ---@field private node octo.PullRequest|octo.Issue|octo.Release|octo.Discussion|octo.Repository
 ---@field taggable_users? string[] list of taggable users for the buffer. Trigger with @
 ---@field owner? string
@@ -55,6 +56,7 @@ function OctoBuffer:new(opts)
     bodyMetadata = BodyMetadata:new(),
     commentsMetadata = opts.commentsMetadata or {},
     threadsMetadata = opts.threadsMetadata or {},
+    commitMetadata = {},
     kind = opts.kind,
   }
   if this.repo then
@@ -1093,6 +1095,24 @@ function OctoBuffer:get_body_at_cursor()
   if start_line + 1 <= cursor[1] and end_line - 2 >= cursor[1] then
     return metadata, start_line, end_line
   end
+end
+
+---Gets the PR commit at cursor (if any)
+function OctoBuffer:get_commit_at_cursor()
+  local cursor = vim.api.nvim_win_get_cursor(0)
+  local marks = vim.api.nvim_buf_get_extmarks(
+    self.bufnr,
+    constants.OCTO_COMMIT_NS,
+    { cursor[1] - 1, 0 },
+    { cursor[1] - 1, -1 },
+    { details = true, limit = 1 }
+  )
+
+  if #marks == 0 then
+    return nil
+  end
+
+  return self.commitMetadata[tostring(marks[1][1])]
 end
 
 ---Gets the review thread at cursor (if any)

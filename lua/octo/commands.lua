@@ -2734,6 +2734,46 @@ function M.copy_url()
   utils.copy_url(url)
 end
 
+local function get_commit_url(buffer, commit_oid)
+  local hostname = get_hostname_from_buffer() or "github.com"
+  return string.format("https://%s/%s/commit/%s", hostname, buffer.repo, commit_oid)
+end
+
+---@param register? string
+function M.copy_commit_url(register)
+  local buffer = utils.get_current_buffer()
+  if not buffer or not buffer:isPullRequest() then
+    utils.error "Not a Pull Request buffer"
+    return
+  end
+
+  local commit = buffer:get_commit_at_cursor()
+  if not commit then
+    utils.error "No commit found at cursor"
+    return
+  end
+
+  utils.copy_url(get_commit_url(buffer, commit.oid), register)
+end
+
+---@param register? string
+function M.copy_commit_markdown_url(register)
+  local buffer = utils.get_current_buffer()
+  if not buffer or not buffer:isPullRequest() then
+    utils.error "Not a Pull Request buffer"
+    return
+  end
+
+  local commit = buffer:get_commit_at_cursor()
+  if not commit then
+    utils.error "No commit found at cursor"
+    return
+  end
+
+  local url = get_commit_url(buffer, commit.oid)
+  utils.copy_markdown_url(commit.abbreviatedOid, url, register)
+end
+
 M.copy_sha = context.within_pr(function(buffer)
   local sha = buffer:pullRequest().headRefOid
   if not sha then
