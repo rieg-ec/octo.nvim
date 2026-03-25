@@ -802,8 +802,9 @@ function M.review_commits(current_review, callback)
             final_actions["confirm"] = function(_picker, item)
               local right = item.sha
               local left = item.parents and item.parents[1] and item.parents[1].sha or nil
+              local message = item.commit and item.commit.message or nil
               if type(callback) == "function" then
-                callback(right, left)
+                callback(right, left, message)
               end
             end
           end

@@ -76,7 +76,7 @@ return function(current_review, callback)
     actions = {
       ["default"] = function(selected)
         local entry = formatted_commits[selected[1]]
-        callback(entry.value, entry.parent)
+        callback(entry.value, entry.parent, entry.msg)
       end,
     },
   })

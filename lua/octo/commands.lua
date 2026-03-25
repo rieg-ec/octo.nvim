@@ -816,8 +816,8 @@ function M.setup()
         end
       end,
       commit = context.within_review(function(current_review)
-        picker.review_commits(current_review, function(left, right)
-          current_review:focus_commit(left, right)
+        picker.review_commits(current_review, function(left, right, message)
+          current_review:focus_commit(left, right, { message = message })
         end)
       end),
       thread = function()
