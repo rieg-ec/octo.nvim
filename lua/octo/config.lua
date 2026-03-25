@@ -407,6 +407,8 @@ function M.get_default_values()
         approve_pr = { lhs = "<leader>qa", desc = "approve PR" },
         open_in_browser = { lhs = "<C-b>", desc = "open PR in browser" },
         copy_url = { lhs = "<C-y>", desc = "copy url to system clipboard" },
+        copy_commit_url = { lhs = "<localleader>y", desc = "copy commit url at cursor" },
+        copy_commit_markdown_url = { lhs = "<localleader>my", desc = "copy markdown commit url at cursor" },
         copy_sha = { lhs = "<C-e>", desc = "copy commit SHA to system clipboard" },
         goto_file = { lhs = "gf", desc = "go to file" },
         add_assignee = { lhs = "<localleader>aa", desc = "add assignee" },

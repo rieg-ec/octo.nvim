@@ -412,6 +412,8 @@ require"octo".setup {
       reload = { lhs = "<C-r>", desc = "reload PR" },
       open_in_browser = { lhs = "<C-b>", desc = "open PR in browser" },
       copy_url = { lhs = "<C-y>", desc = "copy url to system clipboard" },
+      copy_commit_url = { lhs = "<localleader>y", desc = "copy commit url at cursor" },
+      copy_commit_markdown_url = { lhs = "<localleader>my", desc = "copy markdown commit url at cursor" },
       goto_file = { lhs = "gf", desc = "go to file" },
       add_assignee = { lhs = "<localleader>aa", desc = "add assignee" },
       remove_assignee = { lhs = "<localleader>ad", desc = "remove assignee" },

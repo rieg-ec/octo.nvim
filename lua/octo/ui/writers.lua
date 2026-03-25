@@ -2139,6 +2139,7 @@ end
 ---@param item octo.fragments.PullRequestCommit
 ---@param include_date boolean
 local function write_commit(bufnr, item, include_date)
+  local event_line = vim.api.nvim_buf_line_count(bufnr)
   local status_check = get_status_check(item.commit.statusCheckRollup)
   local builder = TextChunkBuilder:new()
     :timeline_marker("commit")
@@ -2152,6 +2153,14 @@ local function write_commit(bufnr, item, include_date)
   end
 
   builder:write_event(bufnr)
+  local commit_mark_id = vim.api.nvim_buf_set_extmark(bufnr, constants.OCTO_COMMIT_NS, event_line, 0, {})
+  local buffer = octo_buffers[bufnr]
+  if buffer then
+    buffer.commitMetadata[tostring(commit_mark_id)] = {
+      oid = item.commit.oid,
+      abbreviatedOid = item.commit.abbreviatedOid,
+    }
+  end
 end
 
 ---@param bufnr integer
@@ -3305,6 +3314,11 @@ end
 ---@param bufnr integer
 ---@param obj octo.PullRequest|octo.Issue
 function M.write_timeline_items(bufnr, obj)
+  vim.api.nvim_buf_clear_namespace(bufnr, constants.OCTO_COMMIT_NS, 0, -1)
+  local buffer = octo_buffers[bufnr]
+  if buffer then
+    buffer.commitMetadata = {}
+  end
   local unrendered_label_events = {} ---@type (octo.fragments.LabeledEvent|octo.fragments.UnlabeledEvent)[]
   local unrendered_subissue_added_events = {} ---@type octo.fragments.SubIssueAddedEvent[]
   local unrendered_subissue_removed_events = {} ---@type octo.fragments.SubIssueRemovedEvent[]

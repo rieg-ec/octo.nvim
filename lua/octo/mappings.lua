@@ -328,6 +328,12 @@ return {
   copy_url = function()
     require("octo.commands").copy_url()
   end,
+  copy_commit_url = function()
+    require("octo.commands").copy_commit_url()
+  end,
+  copy_commit_markdown_url = function()
+    require("octo.commands").copy_commit_markdown_url()
+  end,
   copy_sha = function()
     require("octo.commands").copy_sha()
   end,

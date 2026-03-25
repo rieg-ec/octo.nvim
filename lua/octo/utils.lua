@@ -2086,6 +2086,17 @@ function M.copy_sha(sha, register)
   M.info("Copied SHA '" .. sha:sub(1, 7) .. "' " .. message)
 end
 
+---@param text string
+---@param url string
+---@param register? string
+function M.copy_markdown_url(text, url, register)
+  register = register or "+"
+  local markdown = string.format("[%s](%s)", text, url)
+  vim.fn.setreg(register, markdown, "c")
+  local message = register ~= "+" and "(" .. register .. " register)" or "to the system clipboard (+ register)"
+  M.info("Copied markdown URL '" .. markdown .. "' " .. message)
+end
+
 ---@param opts { prompt: string }
 function M.input(opts)
   vim.fn.inputsave()
