@@ -186,8 +186,19 @@ end
 ---Updates layout to focus on a single commit
 ---@param right string
 ---@param left string
-function Review:focus_commit(right, left)
+---Focus the review on a specific commit or the entire PR.
+---@param right string commit SHA
+---@param left string parent commit SHA
+---@param opts? { message?: string } optional commit message to display in the file panel
+function Review:focus_commit(right, left, opts)
+  opts = opts or {}
   local pr = self.pull_request
+  -- Only show commit message when reviewing a single commit, not the entire PR
+  if right == pr.right.commit and left == pr.left.commit then
+    self._commit_message = nil
+  else
+    self._commit_message = opts.message or nil
+  end
   self.layout:close()
   self.layout = Layout:new {
     right = Rev:new(right),

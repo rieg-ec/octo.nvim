@@ -389,19 +389,31 @@ function FilePanel:render()
 
   local right = current_review.layout.right
   local left = current_review.layout.left
-  local extra_info = { left:abbrev() .. ".." .. right:abbrev() }
   table.insert(lines, "")
   line_idx = line_idx + 1
 
-  s = "Showing changes for:"
-  add_hl("DiffviewFilePanelTitle", line_idx, 0, #s)
-  table.insert(lines, s)
-  line_idx = line_idx + 1
+  -- Show commit message when reviewing a specific commit, otherwise show SHA range
+  if current_review._commit_message then
+    local sha_label = "Commit " .. right:abbrev() .. ":"
+    add_hl("DiffviewFilePanelTitle", line_idx, 0, #sha_label)
+    table.insert(lines, sha_label)
+    line_idx = line_idx + 1
 
-  for _, arg in ipairs(extra_info) do
-    s = arg
-    add_hl("DiffviewFilePanelPath", line_idx, 0, #s)
+    local msg_lines = vim.split(current_review._commit_message, "\n", { plain = true })
+    for _, msg_line in ipairs(msg_lines) do
+      add_hl("DiffviewFilePanelPath", line_idx, 0, #msg_line)
+      table.insert(lines, msg_line)
+      line_idx = line_idx + 1
+    end
+  else
+    s = "Showing changes for:"
+    add_hl("DiffviewFilePanelTitle", line_idx, 0, #s)
     table.insert(lines, s)
+    line_idx = line_idx + 1
+
+    local extra_info = left:abbrev() .. ".." .. right:abbrev()
+    add_hl("DiffviewFilePanelPath", line_idx, 0, #extra_info)
+    table.insert(lines, extra_info)
     line_idx = line_idx + 1
   end
 end

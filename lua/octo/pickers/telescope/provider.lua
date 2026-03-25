@@ -487,7 +487,7 @@ function M.review_commits(current_review, callback)
                   local right = commit.value
                   local left = commit.parent
                   actions.close(prompt_bufnr)
-                  callback(right, left)
+                  callback(right, left, commit.msg)
                 end)
                 map("i", octo_config.values.picker_config.mappings.copy_sha.lhs, copy_sha())
                 return true
