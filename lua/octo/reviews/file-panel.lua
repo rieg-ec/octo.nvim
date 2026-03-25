@@ -59,9 +59,12 @@ FilePanel.bufopts = {
 ---@return FilePanel
 function FilePanel:new(files)
   local conf = config.values
+  local position = conf.file_panel.position or "bottom"
   local this = {
     files = files,
     size = conf.file_panel.size,
+    position = position,
+    lines_per_file = position == "left" and 2 or 1,
   }
 
   setmetatable(this, self)
@@ -99,12 +102,17 @@ function FilePanel:open()
 
   local conf = config.values
   self.size = conf.file_panel.size
-  --vim.cmd("wincmd H")
-  --vim.cmd("vsp")
-  --vim.cmd("vertical resize " .. self.width)
-  vim.cmd "sp"
-  vim.cmd "wincmd J"
-  vim.cmd("resize " .. self.size)
+  self.position = conf.file_panel.position or "bottom"
+
+  if self.position == "left" then
+    vim.cmd "vsp"
+    vim.cmd "wincmd H"
+    vim.cmd("vertical resize " .. self.size)
+  else
+    vim.cmd "sp"
+    vim.cmd "wincmd J"
+    vim.cmd("resize " .. self.size)
+  end
   self.winid = vim.api.nvim_get_current_win()
 
   vim.cmd("buffer " .. self.bufid)
@@ -113,7 +121,11 @@ function FilePanel:open()
     vim.api.nvim_set_option_value(k, v, { win = self.winid, scope = "local" })
   end
 
-  vim.cmd ":wincmd ="
+  if self.position == "left" then
+    vim.api.nvim_set_option_value("wrap", true, { win = self.winid, scope = "local" })
+  else
+    vim.cmd ":wincmd ="
+  end
 end
 
 function FilePanel:close()
@@ -173,7 +185,8 @@ function FilePanel:get_file_at_cursor()
 
   local cursor = vim.api.nvim_win_get_cursor(self.winid)
   local line = cursor[1]
-  return self.files[utils.clamp(line - header_size, 1, #self.files)]
+  local file_idx = math.floor((line - header_size - 1) / self.lines_per_file) + 1
+  return self.files[utils.clamp(file_idx, 1, #self.files)]
 end
 
 function FilePanel:highlight_file(file)
@@ -183,11 +196,11 @@ function FilePanel:highlight_file(file)
 
   for i, f in ipairs(self.files) do
     if f == file then
-      pcall(vim.api.nvim_win_set_cursor, self.winid, { i + header_size, 0 })
+      local start_line = (i - 1) * self.lines_per_file + header_size
+      pcall(vim.api.nvim_win_set_cursor, self.winid, { start_line + 1, 0 })
       vim.api.nvim_buf_clear_namespace(self.bufid, constants.OCTO_FILE_PANEL_NS, 0, -1)
-      local line = i + header_size - 1
-      vim.api.nvim_buf_set_extmark(self.bufid, constants.OCTO_FILE_PANEL_NS, line, 0, {
-        end_line = line + 1,
+      vim.api.nvim_buf_set_extmark(self.bufid, constants.OCTO_FILE_PANEL_NS, start_line, 0, {
+        end_line = start_line + self.lines_per_file,
         hl_group = "OctoFilePanelSelectedFile",
       })
     end
@@ -202,7 +215,8 @@ function FilePanel:highlight_prev_file()
   local cur = self:get_file_at_cursor()
   for i, f in ipairs(self.files) do
     if f == cur then
-      local line = utils.clamp(i + header_size - 1, header_size + 1, #self.files + header_size)
+      local prev_idx = utils.clamp(i - 1, 1, #self.files)
+      local line = (prev_idx - 1) * self.lines_per_file + header_size + 1
       pcall(vim.api.nvim_win_set_cursor, self.winid, { line, 0 })
     end
   end
@@ -216,7 +230,8 @@ function FilePanel:highlight_next_file()
   local cur = self:get_file_at_cursor()
   for i, f in ipairs(self.files) do
     if f == cur then
-      local line = utils.clamp(i + header_size + 1, header_size, #self.files + header_size)
+      local next_idx = utils.clamp(i + 1, 1, #self.files)
+      local line = (next_idx - 1) * self.lines_per_file + header_size + 1
       pcall(vim.api.nvim_win_set_cursor, self.winid, { line, 0 })
     end
   end
@@ -271,120 +286,178 @@ function FilePanel:render()
     max_path_length = math.max(max_path_length, string.len(file.path))
   end
 
+  local is_sidebar = self.position == "left"
+
   for _, file in ipairs(self.files) do
     local offset = 0
     s = ""
 
-    -- diffstat histogram
-    if file.stats then
-      local diffstat = utils.diffstat(file.stats)
+    if is_sidebar then
+      -- Sidebar: line 1 = icon + file path
+      local icon = renderer.get_file_icon(file.basename, file.extension, self.render_data, line_idx, 0)
+      offset = #icon
+      add_hl("OctoFilePanelFileName", line_idx, offset, offset + #file.path)
+      s = icon .. file.path
 
-      local file_changes_length = string.len(diffstat.total)
-      s = string.rep(" ", max_changes_length - file_changes_length) .. diffstat.total .. " "
+      table.insert(lines, s)
+      line_idx = line_idx + 1
+
+      -- Sidebar: line 2 = diffstat + status + viewed state
+      s = "  "
       offset = #s
-      if diffstat.additions > 0 then
-        s = s .. string.rep("■", diffstat.additions)
-        add_hl("OctoDiffstatAdditions", line_idx, offset, offset + (3 * diffstat.additions))
-        offset = offset + (3 * diffstat.additions)
+      if file.stats then
+        local diffstat = utils.diffstat(file.stats)
+        s = s .. diffstat.total .. " "
+        offset = #s
+        if diffstat.additions > 0 then
+          s = s .. string.rep("■", diffstat.additions)
+          add_hl("OctoDiffstatAdditions", line_idx, offset, offset + (3 * diffstat.additions))
+          offset = offset + (3 * diffstat.additions)
+        end
+        if diffstat.deletions > 0 then
+          s = s .. string.rep("■", diffstat.deletions)
+          add_hl("OctoDiffstatDeletions", line_idx, offset, offset + (3 * diffstat.deletions))
+          offset = offset + (3 * diffstat.deletions)
+        end
+        if diffstat.neutral > 0 then
+          s = s .. string.rep("■", diffstat.neutral)
+          add_hl("OctoDiffstatNeutral", line_idx, offset, offset + (3 * diffstat.neutral))
+          offset = offset + (3 * diffstat.neutral)
+        end
       end
-      if diffstat.deletions > 0 then
-        s = s .. string.rep("■", diffstat.deletions)
-        add_hl("OctoDiffstatDeletions", line_idx, offset, offset + (3 * diffstat.deletions))
-        offset = offset + (3 * diffstat.deletions)
+
+      -- status
+      s = s .. " "
+      offset = #s
+      add_hl(renderer.get_git_hl(file.status), line_idx, offset, offset + 1)
+      s = s .. file.status
+
+      -- viewer viewed state
+      if not file.viewed_state then
+        file.viewed_state = "UNVIEWED"
       end
-      if diffstat.neutral > 0 then
-        s = s .. string.rep("■", diffstat.neutral)
-        add_hl("OctoDiffstatNeutral", line_idx, offset, offset + (3 * diffstat.neutral))
-        offset = offset + (3 * diffstat.neutral)
+      offset = #s
+      local viewerViewedStateIcon = utils.viewed_state_map[file.viewed_state].icon
+      local viewerViewedStateHl = utils.viewed_state_map[file.viewed_state].hl
+      s = s .. " " .. viewerViewedStateIcon
+      add_hl(viewerViewedStateHl, line_idx, offset + 1, offset + 4)
+
+      table.insert(lines, s)
+      line_idx = line_idx + 1
+    else
+      -- Bottom panel: original single-line format
+
+      -- diffstat histogram
+      if file.stats then
+        local diffstat = utils.diffstat(file.stats)
+
+        local file_changes_length = string.len(diffstat.total)
+        s = string.rep(" ", max_changes_length - file_changes_length) .. diffstat.total .. " "
+        offset = #s
+        if diffstat.additions > 0 then
+          s = s .. string.rep("■", diffstat.additions)
+          add_hl("OctoDiffstatAdditions", line_idx, offset, offset + (3 * diffstat.additions))
+          offset = offset + (3 * diffstat.additions)
+        end
+        if diffstat.deletions > 0 then
+          s = s .. string.rep("■", diffstat.deletions)
+          add_hl("OctoDiffstatDeletions", line_idx, offset, offset + (3 * diffstat.deletions))
+          offset = offset + (3 * diffstat.deletions)
+        end
+        if diffstat.neutral > 0 then
+          s = s .. string.rep("■", diffstat.neutral)
+          add_hl("OctoDiffstatNeutral", line_idx, offset, offset + (3 * diffstat.neutral))
+          offset = offset + (3 * diffstat.neutral)
+        end
       end
-    end
 
-    -- status
-    add_hl(renderer.get_git_hl(file.status), line_idx, offset + 1, offset + 2)
-    s = s .. " " .. file.status
-    offset = #s
+      -- status
+      add_hl(renderer.get_git_hl(file.status), line_idx, offset + 1, offset + 2)
+      s = s .. " " .. file.status
+      offset = #s
 
-    -- viewer viewed state
-    if not file.viewed_state then
-      file.viewed_state = "UNVIEWED"
-    end
-    local viewerViewedStateIcon = utils.viewed_state_map[file.viewed_state].icon
-    local viewerViewedStateHl = utils.viewed_state_map[file.viewed_state].hl
-    s = s .. " " .. viewerViewedStateIcon
-    add_hl(viewerViewedStateHl, line_idx, offset + 1, offset + 4)
-    offset = #s
+      -- viewer viewed state
+      if not file.viewed_state then
+        file.viewed_state = "UNVIEWED"
+      end
+      local viewerViewedStateIcon = utils.viewed_state_map[file.viewed_state].icon
+      local viewerViewedStateHl = utils.viewed_state_map[file.viewed_state].hl
+      s = s .. " " .. viewerViewedStateIcon
+      add_hl(viewerViewedStateHl, line_idx, offset + 1, offset + 4)
+      offset = #s
 
-    -- icon
-    local icon = renderer.get_file_icon(file.basename, file.extension, self.render_data, line_idx, offset)
-    offset = offset + #icon
+      -- icon
+      local icon = renderer.get_file_icon(file.basename, file.extension, self.render_data, line_idx, offset)
+      offset = offset + #icon
 
-    -- file path
-    add_hl("OctoFilePanelFileName", line_idx, offset, offset + #file.path)
-    s = s .. icon .. file.path
+      -- file path
+      add_hl("OctoFilePanelFileName", line_idx, offset, offset + #file.path)
+      s = s .. icon .. file.path
 
-    -- thread counts
-    local active, resolved, outdated, pending = M.thread_counts(file.path)
-    if active > 0 or resolved > 0 or pending > 0 or outdated > 0 then
-      -- white space to align count columns
-      offset = #s + 1
-      s = s .. string.rep(" ", max_path_length + 1 - string.len(file.path))
-    end
-    local segments = {
-      { count = active, prefix = "active: ", center_hl = "OctoBubbleBlue", delimiter_hl = "OctoBubbleDelimiterBlue" },
-      {
-        count = pending,
-        prefix = "pending: ",
-        center_hl = "OctoBubbleYellow",
-        delimiter_hl = "OctoBubbleDelimiterYellow",
-      },
-      {
-        count = resolved,
-        prefix = "resolved: ",
-        center_hl = "OctoBubbleGreen",
-        delimiter_hl = "OctoBubbleDelimiterGreen",
-      },
-      {
-        count = outdated,
-        prefix = "outdated: ",
-        center_hl = "OctoBubbleRed",
-        delimiter_hl = "OctoBubbleDelimiterRed",
-      },
-    }
-    for _, segment in ipairs(segments) do
-      if segment.count > 0 then
+      -- thread counts
+      local active, resolved, outdated, pending = M.thread_counts(file.path)
+      if active > 0 or resolved > 0 or pending > 0 or outdated > 0 then
+        -- white space to align count columns
         offset = #s + 1
-        local str = string.format(
-          "%s%s%d%s",
-          segment.prefix,
-          conf.left_bubble_delimiter,
-          segment.count,
-          conf.right_bubble_delimiter
-        )
-        add_hl("OctoMissingDetails", line_idx, offset, offset + string.len(segment.prefix))
-        add_hl(
-          segment.delimiter_hl,
-          line_idx,
-          offset + strlen(segment.prefix),
-          offset + strlen(segment.prefix) + strlen(conf.left_bubble_delimiter)
-        )
-        add_hl(
-          segment.center_hl,
-          line_idx,
-          offset + strlen(segment.prefix) + strlen(conf.left_bubble_delimiter),
-          offset + strlen(str) - strlen(conf.right_bubble_delimiter)
-        )
-        add_hl(
-          segment.delimiter_hl,
-          line_idx,
-          offset + strlen(str) - strlen(conf.right_bubble_delimiter),
-          offset + strlen(str)
-        )
-        s = s .. " " .. str
+        s = s .. string.rep(" ", max_path_length + 1 - string.len(file.path))
       end
-    end
+      local segments = {
+        { count = active, prefix = "active: ", center_hl = "OctoBubbleBlue", delimiter_hl = "OctoBubbleDelimiterBlue" },
+        {
+          count = pending,
+          prefix = "pending: ",
+          center_hl = "OctoBubbleYellow",
+          delimiter_hl = "OctoBubbleDelimiterYellow",
+        },
+        {
+          count = resolved,
+          prefix = "resolved: ",
+          center_hl = "OctoBubbleGreen",
+          delimiter_hl = "OctoBubbleDelimiterGreen",
+        },
+        {
+          count = outdated,
+          prefix = "outdated: ",
+          center_hl = "OctoBubbleRed",
+          delimiter_hl = "OctoBubbleDelimiterRed",
+        },
+      }
+      for _, segment in ipairs(segments) do
+        if segment.count > 0 then
+          offset = #s + 1
+          local str = string.format(
+            "%s%s%d%s",
+            segment.prefix,
+            conf.left_bubble_delimiter,
+            segment.count,
+            conf.right_bubble_delimiter
+          )
+          add_hl("OctoMissingDetails", line_idx, offset, offset + string.len(segment.prefix))
+          add_hl(
+            segment.delimiter_hl,
+            line_idx,
+            offset + strlen(segment.prefix),
+            offset + strlen(segment.prefix) + strlen(conf.left_bubble_delimiter)
+          )
+          add_hl(
+            segment.center_hl,
+            line_idx,
+            offset + strlen(segment.prefix) + strlen(conf.left_bubble_delimiter),
+            offset + strlen(str) - strlen(conf.right_bubble_delimiter)
+          )
+          add_hl(
+            segment.delimiter_hl,
+            line_idx,
+            offset + strlen(str) - strlen(conf.right_bubble_delimiter),
+            offset + strlen(str)
+          )
+          s = s .. " " .. str
+        end
+      end
 
-    table.insert(lines, s)
-    line_idx = line_idx + 1
+      table.insert(lines, s)
+      line_idx = line_idx + 1
+    end
   end
 
   local right = current_review.layout.right

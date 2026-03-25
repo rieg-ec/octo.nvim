@@ -63,6 +63,7 @@ local M = {}
 ---@class OctoConfigFilePanel
 ---@field size number
 ---@field use_icons boolean
+---@field position "bottom" | "left"
 
 ---@class OctoConfigUi
 ---@field use_signcolumn boolean
@@ -301,6 +302,7 @@ function M.get_default_values()
     file_panel = {
       size = 10,
       use_icons = true,
+      position = "bottom",
     },
     colors = {
       white = "#ffffff",
@@ -765,6 +767,9 @@ function M.validate_config()
     if validate_type(config.file_panel, "file_panel", "table") then
       validate_type(config.file_panel.size, "file_panel.size", "number")
       validate_type(config.file_panel.use_icons, "file_panel.use_icons", "boolean")
+      if config.file_panel.position then
+        validate_type(config.file_panel.position, "file_panel.position", "string")
+      end
     end
     validate_aliases()
     validate_pickers()
