@@ -90,6 +90,15 @@ function Layout:init_layout()
   vim.api.nvim_set_hl(constants.OCTO_REVIEW_RIGHT_HIGHLIGHT_NS, "DiffText", { background = "#39556f" })
   vim.api.nvim_set_hl(constants.OCTO_REVIEW_RIGHT_HIGHLIGHT_NS, "DiffChange", { link = "DiffAdd" })
   self.file_panel:open()
+
+  -- When file panel is a left sidebar, equalize the two diff windows
+  -- so they share the remaining space evenly
+  if config.values.file_panel.position == "left" then
+    local total_width = vim.o.columns - config.values.file_panel.size - 2
+    local half = math.floor(total_width / 2)
+    vim.api.nvim_win_set_width(self.left_winid, half)
+    vim.api.nvim_win_set_width(self.right_winid, half)
+  end
 end
 
 --- Get the currently selected file
