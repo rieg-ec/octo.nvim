@@ -8,6 +8,7 @@ local utils = require "octo.utils"
 local logins = require "octo.logins"
 local folds = require "octo.folds"
 local bubbles = require "octo.ui.bubbles"
+local colors = require "octo.ui.colors"
 local notify = require "octo.notify"
 local TextChunkBuilder = require "octo.ui.text-chunk-builder"
 local vim = vim
@@ -1051,6 +1052,29 @@ function M.write_details(bufnr, issue, update, include_status)
   end
 end
 
+local function get_reviewer_highlight(login)
+  if not login or login == "" then
+    return "OctoUser"
+  end
+
+  local palette = {
+    config.values.colors.dark_blue,
+    config.values.colors.dark_green,
+    config.values.colors.purple,
+    config.values.colors.dark_red,
+    config.values.colors.dark_yellow,
+    config.values.colors.grey,
+  }
+
+  local hash = 0
+  for i = 1, #login do
+    hash = (hash * 31 + login:byte(i)) % 2147483647
+  end
+
+  local color = palette[(hash % #palette) + 1]
+  return colors.create_highlight(color)
+end
+
 ---@param bufnr integer
 ---@param comment octo.ReviewThreadCommentFragment|octo.fragments.DiscussionComment|octo.fragments.PullRequestReview|octo.fragments.IssueComment|{
 ---  replyToRest: string,
@@ -1093,7 +1117,7 @@ function M.write_comment(bufnr, comment, kind, line)
     comment.author = logins.format_author(comment.author)
     table.insert(header_vt, {
       comment.author.login,
-      comment.viewerDidAuthor and "OctoUserViewer" or "OctoUser",
+      get_reviewer_highlight(comment.author.login),
     })
     table.insert(header_vt, { " ", "OctoTimelineItemHeading" })
     vim.list_extend(header_vt, state_bubble)
@@ -1114,7 +1138,7 @@ function M.write_comment(bufnr, comment, kind, line)
     )
     comment.author = logins.format_author(comment.author)
     table.insert(header_vt, { label, "OctoTimelineItemHeading" })
-    table.insert(header_vt, { comment.author.login, comment.viewerDidAuthor and "OctoUserViewer" or "OctoUser" })
+    table.insert(header_vt, { comment.author.login, get_reviewer_highlight(comment.author.login) })
     if comment.state ~= "SUBMITTED" then
       vim.list_extend(header_vt, state_bubble)
     end
@@ -1130,7 +1154,7 @@ function M.write_comment(bufnr, comment, kind, line)
     )
     comment.author = logins.format_author(comment.author)
     table.insert(header_vt, { "COMMENT: ", "OctoTimelineItemHeading" })
-    table.insert(header_vt, { comment.author.login, comment.viewerDidAuthor and "OctoUserViewer" or "OctoUser" })
+    table.insert(header_vt, { comment.author.login, get_reviewer_highlight(comment.author.login) })
     table.insert(header_vt, { " " .. utils.format_date(comment.createdAt), "OctoDate" })
     if not comment.viewerCanUpdate then
       table.insert(header_vt, { " ", "OctoRed" })
@@ -1145,7 +1169,7 @@ function M.write_comment(bufnr, comment, kind, line)
     end
     --vim.list_extend(header_vt, author_bubble)
     comment.author = logins.format_author(comment.author)
-    table.insert(header_vt, { comment.author.login, comment.viewerDidAuthor and "OctoUserViewer" or "OctoUser" })
+    table.insert(header_vt, { comment.author.login, get_reviewer_highlight(comment.author.login) })
     table.insert(header_vt, { " " .. utils.format_date(comment.createdAt), "OctoDate" })
     if not comment.viewerCanUpdate then
       table.insert(header_vt, { " ", "OctoRed" })
