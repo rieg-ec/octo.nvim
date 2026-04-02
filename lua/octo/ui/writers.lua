@@ -1236,6 +1236,7 @@ function M.write_comment(bufnr, comment, kind, line)
       kind = kind,
       replyTo = comment.replyTo,
       replyToRest = comment.replyToRest,
+      threadId = comment.threadId,
       reviewId = comment.pullRequestReview and comment.pullRequestReview.id,
       path = comment.path,
       diffSide = comment.diffSide,

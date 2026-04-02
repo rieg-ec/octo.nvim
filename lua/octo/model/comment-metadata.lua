@@ -19,6 +19,7 @@ local M = {}
 ---@field kind string
 ---@field replyTo { id: string }
 ---@field replyToRest? string
+---@field threadId? string
 ---@field reviewId string
 ---@field path string
 ---@field diffSide string
@@ -51,6 +52,7 @@ function CommentMetadata:new(opts)
     kind = opts.kind,
     replyTo = opts.replyTo,
     replyToRest = opts.replyToRest,
+    threadId = opts.threadId,
     reviewId = opts.reviewId,
     path = opts.path,
     diffSide = opts.diffSide,

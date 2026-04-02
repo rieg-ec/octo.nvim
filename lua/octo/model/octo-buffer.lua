@@ -5,7 +5,6 @@ local config = require "octo.config"
 local constants = require "octo.constants"
 local folds = require "octo.folds"
 local gh = require "octo.gh"
-local headers = require "octo.gh.headers"
 local graphql = require "octo.gh.graphql"
 local mutations = require "octo.gh.mutations"
 local signs = require "octo.ui.signs"
@@ -493,77 +492,89 @@ end
 ---Replies to a review comment thread
 ---@param comment_metadata CommentMetadata
 function OctoBuffer:do_add_thread_comment(comment_metadata)
-  -- create new thread reply
-  local query = graphql(
-    "add_pull_request_review_comment_mutation",
-    comment_metadata.replyTo,
-    comment_metadata.body,
-    comment_metadata.reviewId
-  )
-  gh.run {
-    args = { "api", "graphql", "-f", string.format("query=%s", query) },
-    cb = function(output, stderr)
-      if stderr and not utils.is_blank(stderr) then
-        utils.print_err(stderr)
-      elseif output then
-        ---@type octo.mutations.AddPullRequestReviewComment
-        local resp = vim.json.decode(output)
-        local resp_comment = resp.data.addPullRequestReviewComment.comment
-        local comment_end ---@type integer
-        if utils.trim(comment_metadata.body) == utils.trim(resp_comment.body) then
-          local comments = self.commentsMetadata
-          for i, c in ipairs(comments) do
-            if tonumber(c.id) == -1 then
-              comments[i].id = resp_comment.id
-              comments[i].savedBody = resp_comment.body
-              comments[i].dirty = false
-              comment_end = comments[i].endLine
-              break
-            end
+  local thread_id = comment_metadata.threadId
+  if utils.is_blank(thread_id) and not utils.is_blank(comment_metadata.replyTo) then
+    for _, thread in pairs(self.threadsMetadata) do
+      if thread.replyTo == comment_metadata.replyTo then
+        thread_id = thread.threadId
+        break
+      end
+    end
+  end
+  if utils.is_blank(thread_id) then
+    utils.error "Cannot find review thread"
+    return
+  end
+
+  gh.api.graphql {
+    query = mutations.add_pull_request_review_thread_reply,
+    F = {
+      input = {
+        pullRequestReviewThreadId = thread_id,
+        body = comment_metadata.body,
+      },
+    },
+    opts = {
+      cb = gh.create_callback {
+        failure = utils.print_err,
+        success = function(output)
+          ---@type octo.mutations.AddPullRequestReviewThreadReply
+          local resp = vim.json.decode(output)
+          local resp_comment = resp.data.addPullRequestReviewThreadReply.comment
+          local comment_end ---@type integer
+          if utils.is_blank(resp_comment) then
+            utils.error "Failed to reply to thread"
+            return
           end
-
-          local threads = resp_comment.pullRequest.reviewThreads.nodes
-          local review = require("octo.reviews").get_current_review()
-          if review then
-            review:update_threads(threads)
-          end
-
-          self:render_signs()
-
-          -- update thread map
-          local thread_id ---@type string
-          for _, thread in ipairs(threads) do
-            for _, c in ipairs(thread.comments.nodes) do
-              if c.id == resp_comment.id then
-                thread_id = thread.id
+          if utils.trim(comment_metadata.body) == utils.trim(resp_comment.body) then
+            local comments = self.commentsMetadata
+            for i, c in ipairs(comments) do
+              if tonumber(c.id) == -1 then
+                comments[i].id = resp_comment.id
+                comments[i].savedBody = resp_comment.body
+                comments[i].dirty = false
+                comment_end = comments[i].endLine
                 break
               end
             end
-          end
-          local mark_id ---@type integer
-          for markId, threadMetadata in pairs(self.threadsMetadata) do
-            if threadMetadata.threadId == thread_id then
-              mark_id = markId
+
+            local threads = resp_comment.pullRequest.reviewThreads.nodes
+            local review = require("octo.reviews").get_current_review()
+            if review then
+              review:update_threads(threads)
+            end
+
+            self:render_signs()
+
+            local mark_id ---@type integer
+            for markId, threadMetadata in pairs(self.threadsMetadata) do
+              if threadMetadata.threadId == thread_id then
+                mark_id = markId
+                break
+              end
+            end
+            if mark_id then
+              local extmark = vim.api.nvim_buf_get_extmark_by_id(
+                self.bufnr,
+                constants.OCTO_THREAD_NS,
+                tonumber(mark_id) --[[@as integer]],
+                { details = true }
+              )
+              if extmark and #extmark > 0 then
+                local thread_start = extmark[1]
+                vim.api.nvim_buf_del_extmark(self.bufnr, constants.OCTO_THREAD_NS, tonumber(mark_id) --[[@as integer]])
+                local thread_mark_id = vim.api.nvim_buf_set_extmark(self.bufnr, constants.OCTO_THREAD_NS, thread_start, 0, {
+                  end_line = comment_end + 2,
+                  end_col = 0,
+                })
+                self.threadsMetadata[tostring(thread_mark_id)] = self.threadsMetadata[tostring(mark_id)]
+                self.threadsMetadata[tostring(mark_id)] = nil
+              end
             end
           end
-          local extmark = vim.api.nvim_buf_get_extmark_by_id(
-            self.bufnr,
-            constants.OCTO_THREAD_NS,
-            tonumber(mark_id) --[[@as integer]],
-            { details = true }
-          )
-          local thread_start = extmark[1]
-          -- update extmark
-          vim.api.nvim_buf_del_extmark(self.bufnr, constants.OCTO_THREAD_NS, tonumber(mark_id) --[[@as integer]])
-          local thread_mark_id = vim.api.nvim_buf_set_extmark(self.bufnr, constants.OCTO_THREAD_NS, thread_start, 0, {
-            end_line = comment_end + 2,
-            end_col = 0,
-          })
-          self.threadsMetadata[tostring(thread_mark_id)] = self.threadsMetadata[tostring(mark_id)]
-          self.threadsMetadata[tostring(mark_id)] = nil
-        end
-      end
-    end,
+        end,
+      },
+    },
   }
 end
 
@@ -771,48 +782,7 @@ end
 
 ---Replies a review thread w/o creating a new review
 function OctoBuffer:do_add_pull_request_comment(comment_metadata)
-  local current_review = require("octo.reviews").get_current_review()
-  if not utils.is_blank(current_review) then
-    utils.error "Please submit or discard the current review before adding a comment"
-    return
-  end
-  gh.run {
-    args = {
-      "api",
-      "--method",
-      "POST",
-      string.format("/repos/%s/pulls/%d/comments/%s/replies", self.repo, self.number, comment_metadata.replyToRest),
-      "-f",
-      string.format([[body=%s]], utils.escape_char(comment_metadata.body)),
-      "--jq",
-      ".",
-    },
-    headers = { headers.json },
-    cb = function(output, stderr)
-      if not utils.is_blank(stderr) then
-        utils.error(stderr)
-      elseif output then
-        local resp = vim.json.decode(output)
-        if not utils.is_blank(resp) then
-          if utils.trim(comment_metadata.body) == utils.trim(resp.body) then
-            local comments = self.commentsMetadata
-            for i, c in ipairs(comments) do
-              if tonumber(c.id) == -1 then
-                comments[i].id = resp.id
-                comments[i].savedBody = resp.body
-                comments[i].dirty = false
-                break
-              end
-            end
-            self:render_signs()
-          end
-        else
-          utils.error "Failed to create thread"
-          return
-        end
-      end
-    end,
-  }
+  self:do_add_thread_comment(comment_metadata)
 end
 
 ---Update a comment's metadata

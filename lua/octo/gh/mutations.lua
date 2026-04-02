@@ -538,16 +538,46 @@ mutation {
 }
 ]] .. fragments.reaction_groups .. fragments.review_thread_information .. fragments.review_thread_comment
 
-  -- M.add_pull_request_review_comment = [[
-  -- mutation {
-  --   addPullRequestReviewThreadReply(input: { pullRequestReviewThreadId: "%s", body: """%s"""}) {
-  --     comment{
-  --       id
-  --       body
-  --     }
-  --   }
-  -- }
-  -- ]]
+  ---@class octo.mutations.AddPullRequestReviewThreadReply
+  ---@field data {
+  ---  addPullRequestReviewThreadReply: {
+  ---    comment: {
+  ---      id: string,
+  ---      body: string,
+  ---      state: octo.PullRequestReviewCommentState,
+  ---      pullRequest: {
+  ---        reviewThreads: {
+  ---          nodes: octo.ReviewThread[],
+  ---        },
+  ---      },
+  ---    },
+  ---  },
+  ---}
+
+  -- https://docs.github.com/en/graphql/reference/mutations#addpullrequestreviewthreadreply
+  M.add_pull_request_review_thread_reply = [[
+mutation($input: AddPullRequestReviewThreadReplyInput!) {
+  addPullRequestReviewThreadReply(input: $input) {
+    comment {
+      id
+      body
+      state
+      pullRequest {
+        reviewThreads(last:100) {
+          nodes {
+            ...ReviewThreadInformationFragment
+            comments(first:100) {
+              nodes {
+                ...ReviewThreadCommentFragment
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
+]] .. fragments.reaction_groups .. fragments.review_thread_information .. fragments.review_thread_comment
 
   -- https://docs.github.com/en/graphql/reference/mutations#deleteissuecomment
   M.delete_issue_comment = [[
