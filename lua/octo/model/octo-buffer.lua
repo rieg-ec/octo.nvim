@@ -589,22 +589,7 @@ function OctoBuffer:do_add_new_thread(comment_metadata)
     isMultiline = false
   end
 
-  -- create new thread
-  if review_level == "PR" then
-    ---@type octo.mutations.AddPullRequestReviewThreadInput
-    local input = {
-      pullRequestReviewId = comment_metadata.reviewId,
-      body = comment_metadata.body,
-      path = comment_metadata.path,
-      side = comment_metadata.diffSide,
-      line = comment_metadata.snippetStartLine,
-    }
-
-    if isMultiline then
-      input["startLine"] = comment_metadata.snippetStartLine
-      input["line"] = comment_metadata.snippetEndLine
-    end
-
+  local function create_review_thread(input)
     gh.api.graphql {
       query = mutations.add_pull_request_review_thread,
       F = { input = input },
@@ -656,116 +641,131 @@ function OctoBuffer:do_add_new_thread(comment_metadata)
         },
       },
     }
-  elseif review_level == "COMMIT" then
-    if isMultiline then
-      utils.error "Can't create a multiline comment at the commit level"
-      return
-    else
-      -- get the line number the comment is on
-      local line ---@type integer
-      for _, thread in
-        ipairs(vim.tbl_values(self.threadsMetadata) --[[@as ThreadMetadata[] ]])
-      do
-        if thread.threadId == -1 then
-          line = thread.line
-        end
-      end
+  end
 
-      -- we need to convert the line number to a diff line number (position)
-      local position = line
-      if file.status ~= "A" then
-        -- for non-added files (modified), check we are in a valid comment range
-        local diffhunks = {}
-        local diffhunk = ""
-        local left_comment_ranges, right_comment_ranges = {}, {}
-        diffhunks, left_comment_ranges, right_comment_ranges =
-          file.diffhunks, file.left_comment_ranges, file.right_comment_ranges
-        local comment_ranges ---@type [integer, integer][]
-        if not diffhunks then
-          utils.error "Diff hunks not found"
+  -- create new thread
+  if review_level == "PR" or isMultiline then
+    ---@type octo.mutations.AddPullRequestReviewThreadInput
+    local input = {
+      pullRequestReviewId = comment_metadata.reviewId,
+      body = comment_metadata.body,
+      path = comment_metadata.path,
+      side = comment_metadata.diffSide,
+      line = comment_metadata.snippetStartLine,
+    }
+
+    if isMultiline then
+      input["startLine"] = comment_metadata.snippetStartLine
+      input["startSide"] = comment_metadata.diffSide
+      input["line"] = comment_metadata.snippetEndLine
+    end
+
+    create_review_thread(input)
+  elseif review_level == "COMMIT" then
+    -- get the line number the comment is on
+    local line ---@type integer
+    for _, thread in
+      ipairs(vim.tbl_values(self.threadsMetadata) --[[@as ThreadMetadata[] ]])
+    do
+      if thread.threadId == -1 then
+        line = thread.line
+      end
+    end
+
+    -- we need to convert the line number to a diff line number (position)
+    local position = line
+    if file.status ~= "A" then
+      -- for non-added files (modified), check we are in a valid comment range
+      local diffhunks = {}
+      local diffhunk = ""
+      local left_comment_ranges, right_comment_ranges = {}, {}
+      diffhunks, left_comment_ranges, right_comment_ranges =
+        file.diffhunks, file.left_comment_ranges, file.right_comment_ranges
+      local comment_ranges ---@type [integer, integer][]
+      if not diffhunks then
+        utils.error "Diff hunks not found"
+        return
+      end
+      if comment_metadata.diffSide == "RIGHT" then
+        if not right_comment_ranges then
+          utils.error "Right comment ranges not found"
           return
         end
-        if comment_metadata.diffSide == "RIGHT" then
-          if not right_comment_ranges then
-            utils.error "Right comment ranges not found"
-            return
-          end
-          comment_ranges = right_comment_ranges
-        elseif comment_metadata.diffSide == "LEFT" then
-          if not left_comment_ranges then
-            utils.error "Left comment ranges not found"
-            return
-          end
-          comment_ranges = left_comment_ranges
+        comment_ranges = right_comment_ranges
+      elseif comment_metadata.diffSide == "LEFT" then
+        if not left_comment_ranges then
+          utils.error "Left comment ranges not found"
+          return
         end
-        local idx, offset = 0, 0
-        for i, range in ipairs(comment_ranges) do
-          if range[1] <= line and range[2] >= line then
-            diffhunk = diffhunks[i]
-            idx = i
-            break
-          end
+        comment_ranges = left_comment_ranges
+      end
+      local idx, offset = 0, 0
+      for i, range in ipairs(comment_ranges) do
+        if range[1] <= line and range[2] >= line then
+          diffhunk = diffhunks[i]
+          idx = i
+          break
         end
-        for i, hunk in ipairs(diffhunks) do
-          if i < idx then
-            offset = offset + #vim.split(hunk, "\n")
-          end
+      end
+      for i, hunk in ipairs(diffhunks) do
+        if i < idx then
+          offset = offset + #vim.split(hunk, "\n")
         end
-        if not vim.startswith(diffhunk, "@@") then
-          diffhunk = "@@ " .. diffhunk
-        end
-
-        local map = utils.generate_line2position_map(diffhunk)
-        if comment_metadata.diffSide == "RIGHT" then
-          position = map.right_side_lines[tostring(line)]
-        elseif comment_metadata.diffSide == "LEFT" then
-          position = map.left_side_lines[tostring(line)]
-        end
-        position = position + offset - 1
+      end
+      if not vim.startswith(diffhunk, "@@") then
+        diffhunk = "@@ " .. diffhunk
       end
 
-      local query = graphql(
-        "add_pull_request_review_commit_thread_mutation",
-        layout.right.commit,
-        comment_metadata.body,
-        comment_metadata.reviewId,
-        comment_metadata.path,
-        position
-      )
-      gh.run {
-        args = { "api", "graphql", "-f", string.format("query=%s", query) },
-        cb = function(output, stderr)
-          if stderr and not utils.is_blank(stderr) then
-            utils.print_err(stderr)
-          elseif output then
-            ---@type octo.mutations.AddPullRequestReviewCommitThread
-            local r = vim.json.decode(output)
-            local resp = r.data.addPullRequestReviewComment
-            if not utils.is_blank(resp.comment) then
-              if utils.trim(comment_metadata.body) == utils.trim(resp.comment.body) then
-                local comments = self.commentsMetadata
-                for i, c in ipairs(comments) do
-                  if tonumber(c.id) == -1 then
-                    comments[i].id = resp.comment.id
-                    comments[i].savedBody = resp.comment.body
-                    comments[i].dirty = false
-                    break
-                  end
-                end
-                if review then
-                  local threads = resp.comment.pullRequest.reviewThreads.nodes
-                  review:update_threads(threads)
-                end
-                self:render_signs()
-              end
-            else
-              utils.error "Failed to create thread"
-              return
-            end
-          end
-        end,
-      }
+      local map = utils.generate_line2position_map(diffhunk)
+      if comment_metadata.diffSide == "RIGHT" then
+        position = map.right_side_lines[tostring(line)]
+      elseif comment_metadata.diffSide == "LEFT" then
+        position = map.left_side_lines[tostring(line)]
+      end
+      position = position + offset - 1
     end
+
+    local query = graphql(
+      "add_pull_request_review_commit_thread_mutation",
+      layout.right.commit,
+      comment_metadata.body,
+      comment_metadata.reviewId,
+      comment_metadata.path,
+      position
+    )
+    gh.run {
+      args = { "api", "graphql", "-f", string.format("query=%s", query) },
+      cb = function(output, stderr)
+        if stderr and not utils.is_blank(stderr) then
+          utils.print_err(stderr)
+        elseif output then
+          ---@type octo.mutations.AddPullRequestReviewCommitThread
+          local r = vim.json.decode(output)
+          local resp = r.data.addPullRequestReviewComment
+          if not utils.is_blank(resp.comment) then
+            if utils.trim(comment_metadata.body) == utils.trim(resp.comment.body) then
+              local comments = self.commentsMetadata
+              for i, c in ipairs(comments) do
+                if tonumber(c.id) == -1 then
+                  comments[i].id = resp.comment.id
+                  comments[i].savedBody = resp.comment.body
+                  comments[i].dirty = false
+                  break
+                end
+              end
+              if review then
+                local threads = resp.comment.pullRequest.reviewThreads.nodes
+                review:update_threads(threads)
+              end
+              self:render_signs()
+            end
+          else
+            utils.error "Failed to create thread"
+            return
+          end
+        end
+      end,
+    }
   end
 end
 
