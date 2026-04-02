@@ -283,3 +283,23 @@ describe("string methods", function()
     end)
   end)
 end)
+
+describe("generate_position2line_map", function()
+  it("supports diff hunks without explicit line counts", function()
+    local map = this.generate_position2line_map(table.concat({ "@@ -12 +12 @@", "-old", "+new" }, "\n"))
+
+    eq(12, map.left_offset)
+    eq(12, map.right_offset)
+    eq({ [2] = 12 }, map.left_side_lines)
+    eq({ [3] = 12 }, map.right_side_lines)
+  end)
+
+  it("supports hunks where only one side omits the count", function()
+    local map = this.generate_position2line_map(table.concat({ "@@ -3 +4,5 @@", " line one", "+line two" }, "\n"))
+
+    eq(3, map.left_offset)
+    eq(4, map.right_offset)
+    eq(3, map.left_side_lines[2])
+    eq(5, map.right_side_lines[3])
+  end)
+end)

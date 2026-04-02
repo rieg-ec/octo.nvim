@@ -1339,6 +1339,12 @@ function M.add_pr_issue_or_review_thread_comment(body)
     vim.cmd [[startinsert]]
   end
 
+  if comment_kind == "PullRequestReviewComment" then
+    utils.info "Draft review comment inserted. Save with :w to sync it to GitHub."
+  elseif comment_kind == "PullRequestComment" or comment_kind == "IssueComment" or comment_kind == "DiscussionComment" then
+    utils.info "Draft comment inserted. Save with :w to send it to GitHub."
+  end
+
   -- drop undo history
   utils.clear_history()
 end
