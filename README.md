@@ -1,4 +1,4 @@
-<p align="center" data-repro="reply-reload">
+<p align="center">
     <a href="https://github.com/pwntester/octo.nvim"><img
             src="https://img.shields.io/github/repo-size/pwntester/octo.nvim"
             alt="GitHub repository size"/></a>
