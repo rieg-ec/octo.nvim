@@ -445,7 +445,7 @@ function FileEntry:place_signs()
     for _, thread in ipairs(threads) do
       local startLine, endLine = thread.startLine, thread.line
       if review_level == "COMMIT" then
-        startLine = thread.originalLine
+        startLine = thread.originalStartLine ~= vim.NIL and thread.originalStartLine or thread.originalLine
         endLine = thread.originalLine
       end
 
