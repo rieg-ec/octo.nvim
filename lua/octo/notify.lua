@@ -23,4 +23,8 @@ function M.error(msg)
   M.notify(msg, 2)
 end
 
+function M.warn(msg)
+  vim.notify(msg, vim.log.levels.WARN, { title = "Octo.nvim" })
+end
+
 return M
