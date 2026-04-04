@@ -842,6 +842,9 @@ function M.setup()
       unresolve = function()
         M.unresolve_thread()
       end,
+      diff = function()
+        M.show_thread_diff()
+      end,
     },
     comment = {
       add = function()
@@ -2228,6 +2231,27 @@ function M.show_pr_diff()
         vim.api.nvim_buf_set_name(wbufnr, "DIFF: " .. buffer:pullRequest().title)
       end
     end,
+  }
+end
+
+function M.show_thread_diff()
+  local buffer = utils.get_current_buffer()
+  if not buffer or (not buffer:isPullRequest() and not buffer:isReviewThread()) then
+    utils.error "Not a pull request or review thread buffer"
+    return
+  end
+
+  local thread = buffer:get_thread_at_cursor()
+  if not thread then
+    utils.error "Cannot find review thread"
+    return
+  end
+
+  picker.changed_files {
+    repo = buffer.repo,
+    number = buffer.number,
+    path = thread.path,
+    prompt_title = string.format("Thread Diff: %s", thread.path),
   }
 end
 

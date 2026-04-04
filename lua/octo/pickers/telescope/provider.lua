@@ -514,6 +514,17 @@ function M.changed_files(opts)
       cb = gh.create_callback {
         success = function(output)
           local results = vim.json.decode(output)
+          if opts.path then
+            local target_path = vim.startswith(opts.path, "/") and string.sub(opts.path, 2) or opts.path
+            results = vim.tbl_filter(function(result)
+              return result.filename == target_path
+            end, results)
+          end
+
+          if #results == 0 then
+            utils.error(opts.path and string.format("Cannot find changed file for thread path %s", opts.path) or "No changed files found")
+            return
+          end
 
           local max_additions = -1
           local max_deletions = -1
@@ -528,7 +539,7 @@ function M.changed_files(opts)
 
           pickers
             .new({}, {
-              prompt_title = false,
+              prompt_title = opts.prompt_title or false,
               results_title = false,
               preview_title = false,
               finder = finders.new_table {

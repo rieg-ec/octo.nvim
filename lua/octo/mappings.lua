@@ -154,6 +154,7 @@ return {
       ["Remove Reviewer"] = commands.reviewer.remove,
       ["Resolve Thread"] = commands.thread.resolve,
       ["Unresolve Thread"] = commands.thread.unresolve,
+      ["View Thread File Diff"] = commands.thread.diff,
       ["Add Assignee"] = commands.assignee.add,
       ["Remove Assignee"] = commands.assignee.remove,
       ["Add ProjectV2 Card"] = commands.cardv2.set,
@@ -357,6 +358,9 @@ return {
   end,
   goto_file = function()
     require("octo.navigation").go_to_file()
+  end,
+  show_thread_diff = function()
+    require("octo.commands").show_thread_diff()
   end,
   next_comment = function()
     require("octo.navigation").next_comment()
