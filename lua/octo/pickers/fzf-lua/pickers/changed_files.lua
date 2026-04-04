@@ -19,6 +19,18 @@ return function(opts)
           utils.error(stderr)
         elseif output then
           local results = vim.json.decode(output)
+          if opts.path then
+            local target_path = vim.startswith(opts.path, "/") and string.sub(opts.path, 2) or opts.path
+            results = vim.tbl_filter(function(result)
+              return result.filename == target_path
+            end, results)
+          end
+
+          if #results == 0 then
+            utils.error(opts.path and string.format("Cannot find changed file for thread path %s", opts.path) or "No changed files found")
+            fzf_cb()
+            return
+          end
 
           for _, result in ipairs(results) do
             local entry = entry_maker.gen_from_git_changed_files(result)

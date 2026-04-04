@@ -1093,21 +1093,34 @@ function M.search(opts)
   end
 end
 
-function M.changed_files()
+function M.changed_files(opts)
   local buffer = utils.get_current_buffer()
-  if not buffer or not buffer:isPullRequest() then
+  if not buffer or (not buffer:isPullRequest() and not buffer:isReviewThread()) then
     return
   end
+
+  opts = vim.tbl_extend("force", {
+    repo = buffer.repo,
+    number = buffer.number,
+  }, opts or {})
+
   gh.api.get {
     "/repos/{repo}/pulls/{number}/files",
-    format = { repo = buffer.repo, number = buffer.number },
+    format = { repo = opts.repo, number = opts.number },
     opts = {
       paginate = true,
       cb = gh.create_callback {
         success = function(output)
           local results = vim.json.decode(output)
+          if opts.path then
+            local target_path = vim.startswith(opts.path, "/") and string.sub(opts.path, 2) or opts.path
+            results = vim.tbl_filter(function(result)
+              return result.filename == target_path
+            end, results)
+          end
+
           if #results == 0 then
-            utils.error "No changed files found for this pull request"
+            utils.error(opts.path and string.format("Cannot find changed file for thread path %s", opts.path) or "No changed files found for this pull request")
             return
           end
 
@@ -1162,7 +1175,7 @@ function M.changed_files()
           end
 
           Snacks.picker.pick {
-            title = buffer.title or "Changed Files",
+            title = opts.prompt_title or buffer.title or "Changed Files",
             items = results,
             format = function(item, _)
               local ret = {} ---@type snacks.picker.Highlight[]
