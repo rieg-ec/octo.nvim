@@ -24,6 +24,7 @@ M.picker = {
   project_columns_v2 = require "octo.pickers.fzf-lua.pickers.project_columns_v2",
   prs = require "octo.pickers.fzf-lua.pickers.prs",
   repos = require "octo.pickers.fzf-lua.pickers.repos",
+  reviews = require "octo.pickers.fzf-lua.pickers.reviews",
   review_commits = require "octo.pickers.fzf-lua.pickers.review_commits",
   search = require "octo.pickers.fzf-lua.pickers.search",
   users = require "octo.pickers.fzf-lua.pickers.users",

@@ -785,6 +785,29 @@ end
 ---
 -- REVIEW COMMENTS
 ---
+function M.reviews(reviews_list, on_select)
+  pickers
+    .new(dropdown_opts, {
+      prompt_title = false,
+      results_title = false,
+      preview_title = false,
+      finder = finders.new_table {
+        results = reviews_list,
+        entry_maker = entry_maker.gen_from_pull_request_review(),
+      },
+      sorter = sorters.fuzzy_with_index_bias {},
+      attach_mappings = function()
+        actions.select_default:replace(function(prompt_bufnr)
+          local review = action_state.get_selected_entry(prompt_bufnr).review
+          actions.close(prompt_bufnr)
+          on_select(review)
+        end)
+        return true
+      end,
+    })
+    :find()
+end
+
 function M.pending_threads(threads)
   local max_linenr_length = -1
   for _, thread in ipairs(threads) do
@@ -1818,6 +1841,7 @@ M.picker = {
   prs = M.pull_requests,
   releases = M.releases,
   repos = M.repos,
+  reviews = M.reviews,
   review_commits = M.review_commits,
   search = M.search,
   users = M.select_user,
