@@ -1,4 +1,5 @@
 local Layout = require("octo.reviews.layout").Layout
+local review_browser = require "octo.reviews.review-browser"
 local Rev = require("octo.reviews.rev").Rev
 local config = require "octo.config"
 local gh = require "octo.gh"
@@ -23,6 +24,33 @@ local Review = {}
 Review.__index = Review
 
 local default_id = -1
+
+local function format_review_datetime(date_string)
+  local timestamp = utils.parse_utc_date(date_string)
+  local local_time = os.time()
+  local utc_time = os.time(os.date("!*t"))
+  local offset = os.difftime(local_time, utc_time)
+  return os.date("%Y-%m-%d %H:%M", timestamp + offset)
+end
+
+---@param pull_request PullRequest
+---@return (octo.fragments.PullRequestReview & { comment_count: integer, display_date: string })[]
+local function collect_pull_request_reviews(pull_request)
+  local collected = {}
+  for _, item in ipairs(pull_request.timelineItems.nodes) do
+    if item.__typename == "PullRequestReview" then
+      item.comment_count = item.comments and item.comments.totalCount or 0
+      item.display_date = format_review_datetime(item.createdAt)
+      table.insert(collected, item)
+    end
+  end
+
+  table.sort(collected, function(left, right)
+    return left.createdAt > right.createdAt
+  end)
+
+  return collected
+end
 
 ---Review constructor.
 ---@param pull_request PullRequest
@@ -695,6 +723,19 @@ function M.start_or_resume_review()
   get_pr_from_buffer_or_current_branch(function(pull_request)
     local current_review = Review:new(pull_request)
     current_review:start_or_resume()
+  end)
+end
+
+---@param pull_request PullRequest
+function M.list_reviews(pull_request)
+  local reviews_list = collect_pull_request_reviews(pull_request)
+  if #reviews_list == 0 then
+    utils.error "No reviews found"
+    return
+  end
+
+  require("octo.picker").reviews(reviews_list, function(review)
+    review_browser.open(pull_request, review)
   end)
 end
 
