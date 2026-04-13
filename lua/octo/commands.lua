@@ -793,6 +793,9 @@ function M.setup()
       browse = function()
         reviews.browse_review()
       end,
+      list = context.within_pr(function(buffer)
+        reviews.list_reviews(buffer:pullRequest())
+      end),
       start = function()
         reviews.start_review()
       end,
@@ -1280,7 +1283,8 @@ function M.add_pr_issue_or_review_thread_comment(body)
   }
 
   local _thread = buffer:get_thread_at_cursor()
-  if not utils.is_blank(_thread) and buffer:isReviewThread() then
+  local use_pull_request_thread_actions = buffer:isReviewThread() and buffer.use_pull_request_thread_actions
+  if not utils.is_blank(_thread) and buffer:isReviewThread() and not use_pull_request_thread_actions then
     comment_kind = "PullRequestReviewComment"
 
     -- are we trying to add a review comment while in 'review browse' mode?
@@ -1295,7 +1299,7 @@ function M.add_pr_issue_or_review_thread_comment(body)
     comment.threadId = _thread.threadId
     comment.replyTo = _thread.replyTo
     comment.replyToRest = _thread.replyToRest
-  elseif not utils.is_blank(_thread) and not buffer:isReviewThread() then
+  elseif not utils.is_blank(_thread) and (not buffer:isReviewThread() or use_pull_request_thread_actions) then
     comment_kind = "PullRequestComment"
     comment.state = ""
     comment.threadId = _thread.threadId

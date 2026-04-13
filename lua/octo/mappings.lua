@@ -142,6 +142,7 @@ return {
       ["Squash and Merge PR"] = function()
         commands.pr.merge "squash"
       end,
+      ["Browse Reviews"] = commands.review.list,
       ["Start Review"] = commands.review.start,
       ["Resume Review"] = commands.review.resume,
       ["Approve PR"] = approve_pr,

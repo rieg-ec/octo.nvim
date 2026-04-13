@@ -253,6 +253,51 @@ function M.gen_from_review_thread(linenr_length)
   end
 end
 
+function M.gen_from_pull_request_review()
+  local function make_display(entry)
+    if not entry then
+      return nil
+    end
+
+    local columns = {
+      { entry.review.display_date, "OctoDate" },
+      { entry.review.author and entry.review.author.login or "ghost", "TelescopeResultsIdentifier" },
+      { string.format("%d", entry.review.comment_count), "TelescopeResultsNumber" },
+    }
+
+    local displayer = entry_display.create {
+      separator = " ",
+      items = {
+        { width = 16 },
+        { width = 20 },
+        { width = 8 },
+      },
+    }
+
+    return displayer(columns)
+  end
+
+  return function(review)
+    if not review or vim.tbl_isempty(review) then
+      return nil
+    end
+
+    local ordinal = table.concat({
+      review.display_date or review.createdAt,
+      review.author and review.author.login or "ghost",
+      tostring(review.comment_count or 0),
+      review.state or "",
+    }, " ")
+
+    return {
+      value = review.id,
+      ordinal = ordinal,
+      display = make_display,
+      review = review,
+    }
+  end
+end
+
 function M.gen_from_project_v2()
   local function make_display(entry)
     if not entry then
