@@ -245,35 +245,23 @@ function FileEntry:fetch(sync)
     left_path = self.previous_path
   end
 
+  -- Always fetch from GitHub API. The local_left/local_right flags are set
+  -- based on the PR's merge base and head commits, but during per-commit review
+  -- the layout commits are the commit's parent and the commit itself, which may
+  -- not exist locally. Even when they do exist, the local branch could be stale.
   -- fetch right version
-  if self.pull_request.local_right then
-    utils.get_file_at_commit(right_path, right_sha, function(lines)
-      self.right_lines = lines
-      self.right_fetched = true
-      self.right_fetching = false
-    end)
-  else
-    utils.get_file_contents(self.pull_request.repo, right_abbrev, right_path, function(lines)
-      self.right_lines = lines
-      self.right_fetched = true
-      self.right_fetching = false
-    end)
-  end
+  utils.get_file_contents(self.pull_request.repo, right_abbrev, right_path, function(lines)
+    self.right_lines = lines
+    self.right_fetched = true
+    self.right_fetching = false
+  end)
 
   -- fetch left version
-  if self.pull_request.local_left then
-    utils.get_file_at_commit(left_path, left_sha, function(lines)
-      self.left_lines = lines
-      self.left_fetched = true
-      self.left_fetching = false
-    end)
-  else
-    utils.get_file_contents(self.pull_request.repo, left_abbrev, left_path, function(lines)
-      self.left_lines = lines
-      self.left_fetched = true
-      self.left_fetching = false
-    end)
-  end
+  utils.get_file_contents(self.pull_request.repo, left_abbrev, left_path, function(lines)
+    self.left_lines = lines
+    self.left_fetched = true
+    self.left_fetching = false
+  end)
 
   -- wait until we have both versions
   if sync then
