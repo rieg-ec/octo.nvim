@@ -322,7 +322,7 @@ function OctoBuffer:save()
 
   -- comments
   for _, comment_metadata in ipairs(self.commentsMetadata) do
-    if comment_metadata.body ~= comment_metadata.savedBody then
+    if comment_metadata.dirty then
       if comment_metadata.id == -1 then
         -- we use -1 as an indicator for new comments for which we dont currently have a GH id
         if comment_metadata.kind == "IssueComment" then
@@ -340,8 +340,10 @@ function OctoBuffer:save()
         elseif comment_metadata.kind == "PullRequestComment" then
           self:do_add_pull_request_comment(comment_metadata)
         end
-      else
-        -- comment is an existing comment
+      elseif comment_metadata.viewerDidAuthor then
+        -- only update existing comments authored by the viewer to prevent
+        -- BufWritePre autocommands (e.g. trailing whitespace trimmers) from
+        -- causing spurious edits to other people's comments
         self:do_update_comment(comment_metadata)
       end
     end
@@ -858,11 +860,15 @@ function OctoBuffer:update_metadata()
   for _, metadata in ipairs(metadata_objs) do
     local mark =
       vim.api.nvim_buf_get_extmark_by_id(self.bufnr, constants.OCTO_COMMENT_NS, metadata.extmark, { details = true })
-    local start_line, end_line, text = utils.get_extmark_region(self.bufnr, mark)
-    metadata.body = text
-    metadata.startLine = start_line
-    metadata.endLine = end_line
-    metadata.dirty = utils.trim(metadata.body) ~= utils.trim(metadata.savedBody) and true or false
+    if mark and #mark > 0 then
+      local start_line, end_line, text = utils.get_extmark_region(self.bufnr, mark)
+      if text then
+        metadata.body = text
+        metadata.startLine = start_line
+        metadata.endLine = end_line
+        metadata.dirty = utils.trim(metadata.body) ~= utils.trim(metadata.savedBody) and true or false
+      end
+    end
   end
 end
 
